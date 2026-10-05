@@ -1,0 +1,12 @@
+# Visual Studio
+.vs/
+
+# Installateurs générés
+*.exe
+
+# Fichiers temporaires
+*.tmp
+*.bak
+
+# Fichiers générés par Inno Setup
+*.~is
