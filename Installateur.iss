@@ -1,5 +1,5 @@
 #define MyAppName "Gestion des relevés bancaires"
-#define MyAppVersion "2.0"
+#define MyAppVersion "1.1"
 #define MyAppPublisher "Louis-Marie"
 
 [Setup]
