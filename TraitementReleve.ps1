@@ -1,4 +1,9 @@
-﻿# ============================================================
+﻿param(
+    [string]$EvenementSurveillanceReleveDemarree,
+    [switch]$IgnorerVerificationNumeroCompteODS
+)
+
+# ============================================================
 # ReleveAuto.ps1
 # Orchestre automatiquement le téléchargement et le traitement
 # du relevé bancaire.
@@ -21,9 +26,10 @@ $dossierTelechargements = Join-Path $env:USERPROFILE "Downloads"
 # Adresse à ouvrir dans le navigateur
 $urlBanque = "https://www.labanquepostale.fr/particulier/connexion-espace-client.html"
 
-# Nom attendu du fichier bancaire
-# Exemple : 1234567K1234567812345678.csv
-$motifFichier = '^\d{7}K\d{16}\.csv$'
+# Nom attendu du fichier bancaire (attention ce regex n'est valide que pour la banque postale)
+# voir https://irem.univ-grenoble-alpes.fr/medias/fichier/40x2_1568734553070-pdf, page 16/25 (ou 30/39)
+# Exemple : 1234567A1234567812345678.csv
+$motifFichier = '^\d{7}[A-HJ-NPR-Z]\d{16}\.csv$'
 
 # Nombre de secondes entre deux vérifications
 $delaiVerification = 1
@@ -99,6 +105,15 @@ Write-Host "Le script attend un fichier correspondant à :"
 Write-Host "1234567K1234567812345678.csv" -ForegroundColor Cyan
 Write-Host ""
 
+if (-not [string]::IsNullOrWhiteSpace($EvenementSurveillanceReleveDemarree)) {
+    $signalPret = [System.Threading.EventWaitHandle]::OpenExisting($EvenementSurveillanceReleveDemarree)
+    try {
+        [void]$signalPret.Set()
+    }
+    finally {
+        $signalPret.Dispose()
+    }
+}
 
 # ------------------------------------------------------------
 # ATTENTE DU NOUVEAU FICHIER
@@ -722,8 +737,8 @@ if ($nouvelODS) {
     Set-OdsCellText $cellulesInformations[1] $numeroCompte $ns $xml
 }
 else {
-    $numeroCompteHistorique = Get-OdsCellText $cellulesInformations[1] $ns
-    if ($numeroCompteHistorique -ne $numeroCompte) {
+    if (-not $IgnorerVerificationNumeroCompteODS -and
+        (Get-OdsCellText $cellulesInformations[1] $ns) -ne $numeroCompte) {
         throw "Le numéro de compte indiqué dans le nom du fichier et l'en-tête du CSV ne correspond pas à celui de l'historique."
     }
 }
@@ -1176,4 +1191,4 @@ Write-Host "             TRAITEMENT TERMINÉ" -ForegroundColor Cyan
 Write-Host "==============================================" -ForegroundColor Cyan
 Write-Host ""
 
-Read-Host "Appuyez sur Entrée pour fermer"
+# Read-Host "Appuyez sur Entrée pour fermer"
