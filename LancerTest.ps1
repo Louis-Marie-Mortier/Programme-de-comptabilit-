@@ -68,7 +68,7 @@ try {
     $powershellExe = Join-Path $PSHOME 'powershell.exe'
     $arguments = '-NoProfile -ExecutionPolicy Bypass -File "' + $fichierScript +
         '" -EvenementSurveillanceReleveDemarree "' + $nomEvenementSurveillanceReleveDemarree +
-        '" -IgnorerVerificationNumeroCompteODS -ModeTestSansPopUp'
+        '" -IgnorerVerificationNumeroCompteODS -ModeTestSansOuvertureApplications'
 
     $demarrageProcessus = [System.Diagnostics.ProcessStartInfo]::new()
     $demarrageProcessus.FileName = $powershellExe

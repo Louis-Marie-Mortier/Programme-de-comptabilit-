@@ -1,7 +1,7 @@
 ﻿param(
     [string]$EvenementSurveillanceReleveDemarree,
     [switch]$IgnorerVerificationNumeroCompteODS,
-    [switch]$ModeTestSansPopUp
+    [switch]$ModeTestSansOuvertureApplications
 )
 
 # ============================================================
@@ -94,7 +94,7 @@ Write-Host ""
 # ------------------------------------------------------------
 # OUVERTURE DU SITE BANCAIRE
 # ------------------------------------------------------------
-if (-not $ModeTestSansPopUp) {
+if (-not $ModeTestSansOuvertureApplications) {
     Write-Host "Le navigateur va s'ouvrir pour accéder au site bancaire." -ForegroundColor Yellow
     Write-Host "Veuillez vous connecter et télécharger le relevé bancaire." -ForegroundColor Yellow
     Write-Host ""
@@ -1168,7 +1168,7 @@ Write-Host ""
 # ------------------------------------------------------------
 
 if (Test-Path $fichierODS) {
-    if ($ModeTestSansPopUp) {
+    if ($ModeTestSansOuvertureApplications) {
         Write-Host "Le fichier ODS a été mis à jour, mais il ne sera pas ouvert automatiquement." -ForegroundColor Yellow
         Write-Host "Vous pouvez l'ouvrir manuellement dans LibreOffice Calc si vous le souhaitez." -ForegroundColor Yellow
         Write-Host ""
