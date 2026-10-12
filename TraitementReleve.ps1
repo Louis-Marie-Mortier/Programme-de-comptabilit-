@@ -948,7 +948,7 @@ else {
         # Insertion après la ligne des en-têtes
         [void]$table.InsertAfter(
             $nouvelleLigne,
-            $ligneEntetes
+            $ligneModele
         )
     }
 
