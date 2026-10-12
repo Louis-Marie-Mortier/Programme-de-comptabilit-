@@ -32,7 +32,7 @@ try {
 
     $premiereLigne = Get-Content -LiteralPath $fichierTest -Encoding Default -TotalCount 1
     $numeroCompte = $premiereLigne.Split(';', 2)[1].Trim()
-    if ($numeroCompte -notmatch '^\d{7}K\d{3}$') {
+    if ($numeroCompte -notmatch '^\d{7}[A-HJ-NPR-Z]\d{3}$') {
         throw "Le numéro de compte dans la première ligne de Test.csv n'a pas le format attendu : $numeroCompte"
     }
 
@@ -68,16 +68,23 @@ try {
     $powershellExe = Join-Path $PSHOME 'powershell.exe'
     $arguments = '-NoProfile -ExecutionPolicy Bypass -File "' + $fichierScript +
         '" -EvenementSurveillanceReleveDemarree "' + $nomEvenementSurveillanceReleveDemarree +
-        '" -IgnorerVerificationNumeroCompteODS'
+        '" -IgnorerVerificationNumeroCompteODS -ModeTestSansPopUp'
 
-    $processus = Start-Process `
-        -FilePath $powershellExe `
-        -ArgumentList $arguments `
-        -WorkingDirectory $dossierDeveloppement `
-        -PassThru
+    $demarrageProcessus = [System.Diagnostics.ProcessStartInfo]::new()
+    $demarrageProcessus.FileName = $powershellExe
+    $demarrageProcessus.Arguments = $arguments
+    $demarrageProcessus.WorkingDirectory = $dossierDeveloppement
+    $demarrageProcessus.UseShellExecute = $false
+    $demarrageProcessus.CreateNoWindow = $false
+
+    $processus = [System.Diagnostics.Process]::new()
+    $processus.StartInfo = $demarrageProcessus
+    if (-not $processus.Start()) {
+        throw 'Impossible de démarrer TraitementReleve.ps1.'
+    }
 
     Write-Host ''
-    Write-Host 'Une seconde fenêtre PowerShell exécute TraitementReleve.ps1.' -ForegroundColor Yellow
+    Write-Host 'TraitementReleve.ps1 s''exécute dans cette fenêtre PowerShell.' -ForegroundColor Yellow
     Write-Host 'Attente du démarrage de la surveillance des relevés...'
 
     do {
@@ -99,9 +106,9 @@ try {
     Copy-Item -LiteralPath $fichierTest -Destination $fichierCSVInjecte
     Write-Host "Fichier de test copié dans Téléchargements : $nomCSV" -ForegroundColor Green
     Write-Host ''
-    Write-Host 'Le traitement continue dans la seconde fenêtre.'
-    Write-Host 'Quand TraitementReleve.ps1 ouvre l''historique dans LibreOffice, ferme ce document, puis appuie sur Entrée dans la seconde fenêtre.'
-    Write-Host 'Cette fenêtre principale attendra la fin du script.'
+    Write-Host 'Le traitement continue dans cette fenêtre.'
+    Write-Host 'Quand TraitementReleve.ps1 ouvre l''historique dans LibreOffice, ferme ce document, puis appuie sur Entrée ici.'
+    Write-Host 'Le test attendra la fin du script.'
 
     $processus.WaitForExit()
     $processus.Refresh()

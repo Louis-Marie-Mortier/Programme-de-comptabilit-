@@ -1,6 +1,7 @@
 ﻿param(
     [string]$EvenementSurveillanceReleveDemarree,
-    [switch]$IgnorerVerificationNumeroCompteODS
+    [switch]$IgnorerVerificationNumeroCompteODS,
+    [switch]$ModeTestSansPopUp
 )
 
 # ============================================================
@@ -29,7 +30,8 @@ $urlBanque = "https://www.labanquepostale.fr/particulier/connexion-espace-client
 # Nom attendu du fichier bancaire (attention ce regex n'est valide que pour la banque postale)
 # voir https://irem.univ-grenoble-alpes.fr/medias/fichier/40x2_1568734553070-pdf, page 16/25 (ou 30/39)
 # Exemple : 1234567A1234567812345678.csv
-$motifFichier = '^\d{7}[A-HJ-NPR-Z]\d{16}\.csv$'
+$motifNumeroCompte = '\d{7}[A-HJ-NPR-Z]\d{3}'
+$motifFichier = '^' + $motifNumeroCompte + '\d{13}\.csv$'
 
 # Nombre de secondes entre deux vérifications
 $delaiVerification = 1
@@ -92,14 +94,19 @@ Write-Host ""
 # ------------------------------------------------------------
 # OUVERTURE DU SITE BANCAIRE
 # ------------------------------------------------------------
-
-Write-Host "Ouverture du site bancaire..." -ForegroundColor Yellow
-
-Start-Process $urlBanque
-
-Write-Host "Navigateur ouvert." -ForegroundColor Green
-Write-Host ""
-Write-Host "Veuillez télécharger votre nouveau relevé bancaire."
+if (-not $ModeTestSansPopUp) {
+    Write-Host "Le navigateur va s'ouvrir pour accéder au site bancaire." -ForegroundColor Yellow
+    Write-Host "Veuillez vous connecter et télécharger le relevé bancaire." -ForegroundColor Yellow
+    Write-Host ""
+    Write-Host "Ouverture du site bancaire..." -ForegroundColor Yellow
+    
+    Start-Process $urlBanque
+    
+    Write-Host "Navigateur ouvert." -ForegroundColor Green
+}
+else {
+    Write-Host "Mode test sans pop-up activé. Le navigateur ne sera pas ouvert." -ForegroundColor Yellow
+}
 Write-Host ""
 Write-Host "Le script attend un fichier correspondant à :"
 Write-Host "1234567K1234567812345678.csv" -ForegroundColor Cyan
@@ -221,19 +228,19 @@ Write-Host ""
 # ------------------------------------------------------------
 # Lecture du CSV
 # ------------------------------------------------------------
-
 $lignes = Get-Content -Path $Fichier -Encoding Default
+
 
 # ------------------------------------------------------------
 # Vérification de l'en-tête
 # ------------------------------------------------------------
 
 $enteteAttendue = @(
-    "^Numéro Compte   ;\d{7}K\d{3}$"
+    "^Numéro Compte   ;" + $motifNumeroCompte + "$"
     "^Type         ;[A-Z]{3}$"
     "^Compte tenu en  ;[a-z]*$"
     "^Date            ;\d{2}/\d{2}/\d{4}$"
-    "^Solde \(EUROS\)   ;\d*,\d{2}$"
+    "^Solde \(EUROS\)   ;\d+,\d{2}$"
 )
 
 $enteteTrouvee = $lignes[0..4]
@@ -300,7 +307,7 @@ $resultat = foreach ($ligne in $transactions) {
     # ========================================================
 
     if ($libelle -match '^ACHAT CB\s(.*?)\s(\d{2}\.\d{2}\.\d{2})\sCARTE NUMERO\s*\d{3}\s*$' -or 
-	$libelle -match '^ACHAT CB\s(.*?)\s(\d{2}\.\d{2}\.\d{2})\sEUR\s*\d*,\d{2}\s*CARTE NO\s*\d{3}\s*$') {
+	$libelle -match '^ACHAT CB\s(.*?)\s(\d{2}\.\d{2}\.\d{2})\sEUR\s*\d+,\d{2}\s*CARTE NO\s*\d{3}\s*$') {
 
         $type = "ACHAT CB"
 
@@ -632,7 +639,7 @@ if ($nouvelODS) {
         Write-Host "Fichier attendu :"
         Write-Host $fichierModeleODS
         Write-Host ""
-	pause
+	    pause
         exit 1
     }
 
@@ -722,23 +729,24 @@ $rows = @(
     $table.SelectNodes("./table:table-row", $ns)
 )
 
+$cellulesInformationsNumeroCompte = Get-OdsRowCells -Row $rows[0] -Ns $ns
 $ligneEntetes = $rows[4]
-if ($rows.Count -lt 6) {
+$ligneModele = $rows[5]
+$indiceLignePremiereTransaction = 6
+if ($rows.Count -lt $indiceLignePremiereTransaction) {
     throw "La feuille 'données brutes' ne contient pas de transactions."
 }
-$ligneModele = $rows[5]
 
-$cellulesInformations = Get-OdsRowCells -Row $rows[0] -Ns $ns
 if ($nouvelODS) {
     # On supprime toutes les transactions du modèle
-    for ($i = $rows.Count - 1; $i -ge 5; $i--) {
+    for ($i = $rows.Count - 1; $i -ge $indiceLignePremiereTransaction; $i--) {
         $table.RemoveChild($rows[$i]) | Out-Null
     }
-    Set-OdsCellText $cellulesInformations[1] $numeroCompte $ns $xml
+    Set-OdsCellText $cellulesInformationsNumeroCompte[1] $numeroCompte $ns $xml
 }
 else {
     if (-not $IgnorerVerificationNumeroCompteODS -and
-        (Get-OdsCellText $cellulesInformations[1] $ns) -ne $numeroCompte) {
+        (Get-OdsCellText $cellulesInformationsNumeroCompte[1] $ns) -ne $numeroCompte) {
         throw "Le numéro de compte indiqué dans le nom du fichier et l'en-tête du CSV ne correspond pas à celui de l'historique."
     }
 }
@@ -749,11 +757,7 @@ else {
 
 $clesHistoriques = [System.Collections.Generic.HashSet[string]]::new()
 
-# Les lignes 0 à 4 correspondent aux informations générales
-# et la ligne 5 à l'en-tête des transactions.
-# Les transactions commencent donc à l'index 5.
-
-for ($i = 5; $i -lt $rows.Count; $i++) {
+for ($i = $indiceLignePremiereTransaction; $i -lt $rows.Count; $i++) {
 
     $cellules = Get-OdsRowCells `
         -Row $rows[$i] `
@@ -1164,11 +1168,16 @@ Write-Host ""
 # ------------------------------------------------------------
 
 if (Test-Path $fichierODS) {
+    if ($ModeTestSansPopUp) {
+        Write-Host "Le fichier ODS a été mis à jour, mais il ne sera pas ouvert automatiquement." -ForegroundColor Yellow
+        Write-Host "Vous pouvez l'ouvrir manuellement dans LibreOffice Calc si vous le souhaitez." -ForegroundColor Yellow
+        Write-Host ""
+    }
+    else {
+        Write-Host "Ouverture de LibreOffice Calc..." -ForegroundColor Yellow
 
-    Write-Host "Ouverture de LibreOffice Calc..." -ForegroundColor Yellow
-
-    Start-Process $fichierODS
-
+        Start-Process $fichierODS
+    }
     Write-Host ""
     Write-Host "Le relevé est maintenant prêt à être catégorisé." -ForegroundColor Green
     Write-Host ""
@@ -1192,3 +1201,4 @@ Write-Host "==============================================" -ForegroundColor Cya
 Write-Host ""
 
 # Read-Host "Appuyez sur Entrée pour fermer"
+exit 0
