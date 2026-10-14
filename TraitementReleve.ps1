@@ -730,7 +730,7 @@ $rows = @(
 )
 
 $cellulesInformationsNumeroCompte = Get-OdsRowCells -Row $rows[0] -Ns $ns
-$indiceLignePremiereTransaction = 6
+$indiceLignePremiereTransaction = 8
 $ligneModele = $rows[$indiceLignePremiereTransaction-1]
 $ligneEntetes = $rows[$indiceLignePremiereTransaction-2]
 if ($rows.Count -lt $indiceLignePremiereTransaction) {
