@@ -1,6 +1,7 @@
 # Visual Studio
 .vs/
-
+versions.txt
+versions.md
 # Installateurs générés
 *.exe
 
