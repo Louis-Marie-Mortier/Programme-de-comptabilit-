@@ -730,9 +730,9 @@ $rows = @(
 )
 
 $cellulesInformationsNumeroCompte = Get-OdsRowCells -Row $rows[0] -Ns $ns
-$ligneEntetes = $rows[4]
-$ligneModele = $rows[5]
 $indiceLignePremiereTransaction = 6
+$ligneModele = $rows[$indiceLignePremiereTransaction-1]
+$ligneEntetes = $rows[$indiceLignePremiereTransaction-2]
 if ($rows.Count -lt $indiceLignePremiereTransaction) {
     throw "La feuille 'données brutes' ne contient pas de transactions."
 }
