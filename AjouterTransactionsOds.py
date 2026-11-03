@@ -242,27 +242,17 @@ def update_document(document_path, transactions_path, new_document, account_numb
             used_area = sheet.createCursor()
             used_area.gotoEndOfUsedArea(True)
             last_column = max(6, used_area.RangeAddress.EndColumn)
-            model_range = sheet.getCellRangeByPosition(
-                0,
-                model_row,
-                last_column,
-                model_row,
-            )
             model_height = sheet.Rows.getByIndex(model_row).Height
-
-            sheet.Rows.insertByIndex(first_inserted_row, len(transactions))
-            for offset, transaction in enumerate(transactions):
-                destination_row = first_inserted_row + offset
+            sheet.Rows.insertByIndex(model_row, len(transactions))
+            model_row = model_row + len(transactions)
+            for transaction in reversed(transactions):
+                destination_row = model_row - 1
+                model_range = sheet.getCellRangeByPosition(0, model_row, last_column, model_row)
                 destination = sheet.getCellByPosition(0, destination_row).getCellAddress()
                 sheet.copyRange(destination, model_range.RangeAddress)
                 sheet.Rows.getByIndex(destination_row).Height = model_height
-                set_cell_values(
-                    sheet,
-                    destination_row,
-                    transaction,
-                    document.NumberFormatSettings.NullDate,
-                )
-
+                model_row, destination_row = destination_row, model_row
+                set_cell_values(sheet, destination_row, transaction, document.NumberFormatSettings.NullDate, )
         print("Enregistrement du classeur ODS...", flush=True)
         document.store()
         print("Enregistrement terminé.", flush=True)
