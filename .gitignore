@@ -11,3 +11,6 @@ versions.md
 
 # Fichiers générés par Inno Setup
 *.~is
+
+# resultats de tests
+*test.ods
