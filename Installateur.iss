@@ -19,6 +19,7 @@ WizardStyle=modern
 
 [Files]
 Source: "TraitementReleve.ps1"; DestDir: "{app}\programme"; Flags: ignoreversion
+Source: "AjouterTransactionsOds.py"; DestDir: "{app}\programme"; Flags: ignoreversion
 Source: "Modele.ods"; DestDir: "{app}\programme"; Flags: ignoreversion
 Source: "Notice.pdf"; DestDir: "{app}\programme"; Flags: ignoreversion
 

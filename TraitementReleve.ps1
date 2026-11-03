@@ -394,6 +394,20 @@ function Get-OdsCellText {
         [System.Xml.XmlNamespaceManager]$Ns
     )
 
+    $officeUri = "urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+    $dateValue = $Cell.GetAttribute("date-value", $officeUri)
+    if (-not [string]::IsNullOrWhiteSpace($dateValue)) {
+        $date = [datetime]::ParseExact(
+            $dateValue,
+            "yyyy-MM-dd",
+            [Globalization.CultureInfo]::InvariantCulture
+        )
+        return $date.ToString(
+            "dd/MM/yyyy",
+            [Globalization.CultureInfo]::InvariantCulture
+        )
+    }
+
     $p = $Cell.SelectSingleNode("./text:p", $Ns)
 
     if ($null -eq $p) {
@@ -434,186 +448,6 @@ function Get-TransactionKey {
     return "$date|$type|$dateOperation|$destinataire|$montant"
 }
 
-
-function Set-OdsCellText {
-    param(
-        [System.Xml.XmlElement]$Cell,
-        [string]$Value,
-        [System.Xml.XmlNamespaceManager]$Ns,
-        [System.Xml.XmlDocument]$Xml
-    )
-
-    # Suppression des anciennes valeurs éventuelles
-    $officeUri = "urn:oasis:names:tc:opendocument:xmlns:office:1.0"
-    $Cell.RemoveAttribute("value", $officeUri)
-    $Cell.RemoveAttribute("date-value", $officeUri)
-    $Cell.RemoveAttribute("time-value", $officeUri)
-    $Cell.RemoveAttribute("boolean-value", $officeUri)
-    $Cell.RemoveAttribute("string-value", $officeUri)
-
-    [void]$Cell.SetAttribute(
-        "value-type",
-        $officeUri,
-        "string"
-    )
-
-    # On supprime les anciens paragraphes
-    $paragraphes = @(
-        $Cell.SelectNodes("./text:p", $Ns)
-    )
-
-    foreach ($p in $paragraphes) {
-        $Cell.RemoveChild($p) | Out-Null
-    }
-
-    # Création du nouveau paragraphe
-    $p = $Xml.CreateElement(
-        "text",
-        "p",
-        "urn:oasis:names:tc:opendocument:xmlns:text:1.0"
-    )
-
-    $p.InnerText = $Value
-
-    [void]$Cell.AppendChild($p)
-}
-
-
-function Set-OdsAmount {
-    param(
-        [System.Xml.XmlElement]$Cell,
-        [string]$Value,
-        [System.Xml.XmlNamespaceManager]$Ns,
-        [System.Xml.XmlDocument]$Xml
-    )
-
-    $officeUri = "urn:oasis:names:tc:opendocument:xmlns:office:1.0"
-
-    $valeur = $Value.Trim().Replace(" ", "").Replace(",", ".")
-
-    $nombre = 0.0
-
-    if (-not [double]::TryParse(
-        $valeur,
-        [Globalization.NumberStyles]::Float,
-        [Globalization.CultureInfo]::InvariantCulture,
-        [ref]$nombre
-    )) {
-        throw "Impossible de convertir le montant '$Value' en nombre."
-    }
-
-    # Suppression des anciennes valeurs
-    $Cell.RemoveAttribute("value", $officeUri)
-    $Cell.RemoveAttribute("date-value", $officeUri)
-    $Cell.RemoveAttribute("time-value", $officeUri)
-    $Cell.RemoveAttribute("boolean-value", $officeUri)
-    $Cell.RemoveAttribute("string-value", $officeUri)
-
-    [void]$Cell.SetAttribute(
-        "value-type",
-        $officeUri,
-        "float"
-    )
-
-    [void]$Cell.SetAttribute(
-        "value",
-        $officeUri,
-        $nombre.ToString(
-            "0.################",
-            [Globalization.CultureInfo]::InvariantCulture
-        )
-    )
-
-    # Remplacement du texte affiché
-    $paragraphes = @(
-        $Cell.SelectNodes("./text:p", $Ns)
-    )
-
-    foreach ($p in $paragraphes) {
-        $Cell.RemoveChild($p) | Out-Null
-    }
-
-    $p = $Xml.CreateElement(
-        "text",
-        "p",
-        "urn:oasis:names:tc:opendocument:xmlns:text:1.0"
-    )
-
-    $p.InnerText = $Value
-
-    [void]$Cell.AppendChild($p)
-}
-
-function Set-OdsDate {
-    param(
-        [System.Xml.XmlElement]$Cell,
-        [string]$Value,
-        [System.Xml.XmlNamespaceManager]$Ns,
-        [System.Xml.XmlDocument]$Xml
-    )
-
-    $officeUri = "urn:oasis:names:tc:opendocument:xmlns:office:1.0"
-    $calcextUri = "urn:org:documentfoundation:names:experimental:calc:xmlns:calcext:1.0"
-
-    # Supprime toutes les informations de valeur existantes
-    $Cell.RemoveAttribute("value", $officeUri)
-    $Cell.RemoveAttribute("date-value", $officeUri)
-    $Cell.RemoveAttribute("time-value", $officeUri)
-    $Cell.RemoveAttribute("boolean-value", $officeUri)
-    $Cell.RemoveAttribute("string-value", $officeUri)
-    $Cell.RemoveAttribute("value-type", $officeUri)
-
-    # Attribut spécifique à LibreOffice
-    $Cell.RemoveAttribute("value-type", $calcextUri)
-
-    # Supprime les éventuels paragraphes existants
-    $paragraphes = @(
-        $Cell.SelectNodes("./text:p", $Ns)
-    )
-
-    foreach ($p in $paragraphes) {
-        $Cell.RemoveChild($p) | Out-Null
-    }
-
-    # Si la date est vide : on laisse la cellule réellement vide
-    if ([string]::IsNullOrWhiteSpace($Value)) {
-        return
-    }
-
-    # Vérifie et convertit la date
-    $date = [datetime]::ParseExact(
-        $Value.Trim(),
-        "dd/MM/yyyy",
-        [Globalization.CultureInfo]::InvariantCulture
-    )
-
-    # Crée une vraie cellule date ODS
-    [void]$Cell.SetAttribute(
-        "value-type",
-        $officeUri,
-        "date"
-    )
-
-    [void]$Cell.SetAttribute(
-        "date-value",
-        $officeUri,
-        $date.ToString(
-            "yyyy-MM-dd",
-            [Globalization.CultureInfo]::InvariantCulture
-        )
-    )
-
-    # Texte affiché dans Calc
-    $p = $Xml.CreateElement(
-        "text",
-        "p",
-        "urn:oasis:names:tc:opendocument:xmlns:text:1.0"
-    )
-
-    $p.InnerText = $date.ToString("dd/MM/yyyy")
-
-    [void]$Cell.AppendChild($p)
-}
 
 Write-Host ""
 Write-Host "Traitement terminé avec succès." -ForegroundColor Green
@@ -693,18 +527,12 @@ $xml.LoadXml($contenuXml)
 
 $tableUri = "urn:oasis:names:tc:opendocument:xmlns:table:1.0"
 $textUri = "urn:oasis:names:tc:opendocument:xmlns:text:1.0"
-$officeUri = "urn:oasis:names:tc:opendocument:xmlns:office:1.0"
-$styleUri = "urn:oasis:names:tc:opendocument:xmlns:style:1.0"
-$calcextUri = "urn:org:documentfoundation:names:experimental:calc:xmlns:calcext:1.0"
 
 
 $ns = New-Object System.Xml.XmlNamespaceManager($xml.NameTable)
 
 $ns.AddNamespace("table", $tableUri)
 $ns.AddNamespace("text", $textUri)
-$ns.AddNamespace("office", $officeUri)
-$ns.AddNamespace("style",$styleUri)
-$ns.AddNamespace("calcext", $calcextUri)
 
 
 
@@ -729,22 +557,14 @@ $rows = @(
     $table.SelectNodes("./table:table-row", $ns)
 )
 
-$cellulesInformationsNumeroCompte = Get-OdsRowCells -Row $rows[0] -Ns $ns
 $indiceLignePremiereTransaction = 8
-$ligneModele = $rows[$indiceLignePremiereTransaction-1]
-$ligneEntetes = $rows[$indiceLignePremiereTransaction-2]
 if ($rows.Count -lt $indiceLignePremiereTransaction) {
     throw "La feuille 'données brutes' ne contient pas de transactions."
 }
 
-if ($nouvelODS) {
-    # On supprime toutes les transactions du modèle
-    for ($i = $rows.Count - 1; $i -ge $indiceLignePremiereTransaction; $i--) {
-        $table.RemoveChild($rows[$i]) | Out-Null
-    }
-    Set-OdsCellText $cellulesInformationsNumeroCompte[1] $numeroCompte $ns $xml
-}
-else {
+$cellulesInformationsNumeroCompte = Get-OdsRowCells -Row $rows[0] -Ns $ns
+
+if (-not $nouvelODS) {
     if (-not $IgnorerVerificationNumeroCompteODS -and
         (Get-OdsCellText $cellulesInformationsNumeroCompte[1] $ns) -ne $numeroCompte) {
         throw "Le numéro de compte indiqué dans le nom du fichier et l'en-tête du CSV ne correspond pas à celui de l'historique."
@@ -757,7 +577,9 @@ else {
 
 $clesHistoriques = [System.Collections.Generic.HashSet[string]]::new()
 
-for ($i = $indiceLignePremiereTransaction; $i -lt $rows.Count; $i++) {
+for ($i = $indiceLignePremiereTransaction;
+    -not $nouvelODS -and $i -lt $rows.Count;
+    $i++) {
 
     $cellules = Get-OdsRowCells `
         -Row $rows[$i] `
@@ -841,273 +663,64 @@ if ($nouvellesTransactions.Count -eq 0) {
 else {
 
 
-    # --------------------------------------------------------
-    # Insertion des nouvelles lignes
-    # --------------------------------------------------------
-
-    # On insère de la plus ancienne vers la plus récente.
-    # Ainsi, chaque nouvelle ligne est placée avant la ligne
-    # historique et l'ordre chronologique décroissant est conservé.
-
-    for ($i = $nouvellesTransactions.Count - 1; $i -ge 0; $i--) {
-
-        $transaction = $nouvellesTransactions[$i]
-        # Copie complète de la première ligne historique.
-        # Cela conserve notamment :
-        # - le format des cellules
-        # - le style
-        # - la validation Catégorie
-        # - la hauteur de ligne
-        $nouvelleLigne = $ligneModele.CloneNode($true)
-
-        $cellules = Get-OdsRowCells `
-            -Row $nouvelleLigne `
-            -Ns $ns
-
-        if ($cellules.Count -lt 7) {
-            throw "La ligne modèle ne contient pas 7 cellules."
-        }
-
-
-        # --------------------------------------------
-        # Date
-        # --------------------------------------------
-
-        Set-OdsDate `
-            -Cell $cellules[0] `
-            -Value ([string]$transaction.Date) `
-            -Ns $ns `
-            -Xml $xml
-
-
-        # --------------------------------------------
-        # Type
-        # --------------------------------------------
-
-        Set-OdsCellText `
-            -Cell $cellules[1] `
-            -Value ([string]$transaction.Type) `
-            -Ns $ns `
-            -Xml $xml
-
-
-        # --------------------------------------------
-        # Date opération
-        # --------------------------------------------
-
-        Set-OdsDate `
-            -Cell $cellules[2] `
-            -Value ([string]$transaction.'Date opération') `
-            -Ns $ns `
-            -Xml $xml
-
-
-        # --------------------------------------------
-        # Débiteur / Destinataire
-        # --------------------------------------------
-
-        Set-OdsCellText `
-            -Cell $cellules[3] `
-            -Value ([string]$transaction.'Débiteur/Destinataire') `
-            -Ns $ns `
-            -Xml $xml
-
-
-        # --------------------------------------------
-        # Montant
-        # --------------------------------------------
-
-        Set-OdsAmount `
-            -Cell $cellules[4] `
-            -Value ([string]$transaction.'Montant(EUROS)') `
-            -Ns $ns `
-            -Xml $xml
-
-
-        # --------------------------------------------
-        # Catégorie
-        # --------------------------------------------
-
-        Set-OdsCellText `
-            -Cell $cellules[5] `
-            -Value "Non identifié" `
-            -Ns $ns `
-            -Xml $xml
-
-
-        # --------------------------------------------
-        # Tags
-        # --------------------------------------------
-
-        Set-OdsCellText `
-            -Cell $cellules[6] `
-            -Value "" `
-            -Ns $ns `
-            -Xml $xml
-
-        # Insertion après la ligne des en-têtes
-        [void]$table.InsertAfter(
-            $nouvelleLigne,
-            $ligneModele
-        )
-    }
-
-    # --------------------------------------------------------
-    # Allongement des plages de formatage conditionnel
-    # --------------------------------------------------------
-
-$colonnesAutorisees = @("A","B","C","D","E","F","G")
-$derniereLigne = $rows.Count + $nouvellesTransactions.Count
-$noeuds = @(
-    $xml.SelectNodes(
-        "//*[@calcext:target-range-address]",
-        $ns
-    )
-)
-
-foreach ($noeud in $noeuds) {
-
-    $adresse = $noeud.GetAttribute(
-        "target-range-address",
-        $calcextUri
-    )
-
-    if ([string]::IsNullOrWhiteSpace($adresse)) {
-        continue
-    }
-
-    foreach ($colonne in $colonnesAutorisees) {
-
-        if ($adresse -match "^'données brutes'\.${colonne}6:'données brutes'\.${colonne}\d+$") {
-
-            $nouvelleAdresse = $adresse -replace "\d+$", $derniereLigne
-
-            [void]$noeud.SetAttribute(
-                "target-range-address",
-                $calcextUri,
-                $nouvelleAdresse
-            )
-
-            break
-        }
-    }
-}
-
-    # --------------------------------------------------------
-    # Sauvegarde XML temporaire
-    # --------------------------------------------------------
-
-    $settings = New-Object System.Xml.XmlWriterSettings
-    $settings.Encoding = New-Object System.Text.UTF8Encoding($false)
-    $settings.Indent = $false
-
-    $memoryStream = New-Object System.IO.MemoryStream
-
-    $writer = [System.Xml.XmlWriter]::Create(
-        $memoryStream,
-        $settings
-    )
-
-    $xml.Save($writer)
-
-    $writer.Flush()
-    $writer.Close()
-
-    $nouveauContentXml = $memoryStream.ToArray()
-
-    $memoryStream.Close()
-
-
-    # --------------------------------------------------------
-    # Création d'un nouvel ODS
-    # --------------------------------------------------------
-
     $fichierODSTemp = $fichierODS + ".tmp"
 
     if (Test-Path $fichierODSTemp) {
         Remove-Item $fichierODSTemp -Force
     }
 
-    $archiveSource = [System.IO.Compression.ZipFile]::OpenRead(
-        $fichierODS
-    )
+    Copy-Item -LiteralPath $fichierODS -Destination $fichierODSTemp
 
-    $archiveDestination = [System.IO.Compression.ZipFile]::Open(
-        $fichierODSTemp,
-        [System.IO.Compression.ZipArchiveMode]::Create
-    )
+    $fichierAssistantOds = Join-Path $PSScriptRoot "AjouterTransactionsOds.py"
+    if (-not (Test-Path -LiteralPath $fichierAssistantOds -PathType Leaf)) {
+        throw "Le script LibreOffice est introuvable : $fichierAssistantOds"
+    }
 
+    $dossiersLibreOffice = @()
+    if (-not [string]::IsNullOrWhiteSpace($env:ProgramFiles)) {
+        $dossiersLibreOffice += Join-Path $env:ProgramFiles "LibreOffice\program"
+    }
+    if (-not [string]::IsNullOrWhiteSpace(${env:ProgramFiles(x86)})) {
+        $dossiersLibreOffice += Join-Path ${env:ProgramFiles(x86)} "LibreOffice\program"
+    }
+
+    $pythonLibreOffice = $dossiersLibreOffice |
+        ForEach-Object { Join-Path $_ "python.exe" } |
+        Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } |
+        Select-Object -First 1
+
+    if ([string]::IsNullOrWhiteSpace($pythonLibreOffice)) {
+        throw "Python intégré à LibreOffice est introuvable. Vérifiez l'installation de LibreOffice."
+    }
+
+    $fichierTransactionsTemp = [System.IO.Path]::GetTempFileName()
     try {
+        $transactionsJson = ConvertTo-Json `
+            -InputObject @($nouvellesTransactions) `
+            -Depth 4
 
-        # ----------------------------------------------------
-        # Le fichier mimetype doit être en premier et
-        # non compressé dans un fichier ODS.
-        # ----------------------------------------------------
+        [System.IO.File]::WriteAllText(
+            $fichierTransactionsTemp,
+            $transactionsJson,
+            [System.Text.UTF8Encoding]::new($false)
+        )
 
-        $entreeMime = $archiveSource.GetEntry("mimetype")
+        & $pythonLibreOffice `
+            $fichierAssistantOds `
+            $fichierODSTemp `
+            $fichierTransactionsTemp `
+            ([string]$nouvelODS) `
+            $numeroCompte
 
-        if ($null -ne $entreeMime) {
-
-            $nouvelleEntree = $archiveDestination.CreateEntry(
-                "mimetype",
-                [System.IO.Compression.CompressionLevel]::NoCompression
-            )
-
-            $sourceStream = $entreeMime.Open()
-            $destinationStream = $nouvelleEntree.Open()
-
-            $sourceStream.CopyTo($destinationStream)
-
-            $destinationStream.Close()
-            $sourceStream.Close()
+        if ($LASTEXITCODE -ne 0) {
+            throw "L'insertion des transactions par LibreOffice a échoué (code $LASTEXITCODE)."
         }
-
-
-        # ----------------------------------------------------
-        # Copie des autres fichiers
-        # ----------------------------------------------------
-
-        foreach ($entree in $archiveSource.Entries) {
-
-            if ($entree.FullName -eq "mimetype") {
-                continue
-            }
-
-            $nouvelleEntree = $archiveDestination.CreateEntry(
-                $entree.FullName,
-                [System.IO.Compression.CompressionLevel]::Optimal
-            )
-
-            $destinationStream = $nouvelleEntree.Open()
-
-            if ($entree.FullName -eq "content.xml") {
-
-                $destinationStream.Write(
-                    $nouveauContentXml,
-                    0,
-                    $nouveauContentXml.Length
-                )
-
-            }
-            else {
-
-                $sourceStream = $entree.Open()
-
-                $sourceStream.CopyTo($destinationStream)
-
-                $sourceStream.Close()
-            }
-
-            $destinationStream.Close()
-        }
-
     }
     finally {
-
-        $archiveDestination.Dispose()
-        $archiveSource.Dispose()
+        if (Test-Path -LiteralPath $fichierTransactionsTemp) {
+            Remove-Item -LiteralPath $fichierTransactionsTemp -Force
+        }
     }
-
 
     # --------------------------------------------------------
     # Sauvegarde de sécurité de l'ancien ODS
