@@ -256,6 +256,9 @@ def update_document(document_path, transactions_path, new_document, account_numb
         print("Enregistrement du classeur ODS...", flush=True)
         document.store()
         print("Enregistrement terminé.", flush=True)
+        print("Transactions ajoutées sur la plage {} de la feuille '{}'.".format(
+            sheet.getCellRangeByPosition(0, model_row + 1, last_column, model_row + len(transactions)).RangeAddress, sheet_name
+        ), flush=True)
     finally:
         try:
             if document is not None:
