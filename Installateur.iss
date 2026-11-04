@@ -74,67 +74,13 @@ begin
 end;
 
 
-function GetTaskParameters(Param: String): String;
+function GetTaskParameters(CreateTask: Boolean): String;
 var
   ScriptPath: String;
   Command: String;
   NombreRemplacements: Integer;
 begin
   ScriptPath := ExpandConstant('{app}\programme\TraitementReleve.ps1');
-
-  Command :=
-    '$ErrorActionPreference = ''Stop''; ' +
-
-    '$action = New-ScheduledTaskAction ' +
-    '-Execute ''powershell.exe'' ' +
-    '-Argument ''-NoProfile -ExecutionPolicy Bypass -File "' + ScriptPath + '"''; ' +
-
-    '$trigger = New-ScheduledTaskTrigger ' +
-    '-Daily ' +
-    '-DaysInterval ' + IntToStr(IntervalleJours) + ' ' +
-    '-At ''08:00''; ' +
-
-    '$principal = New-ScheduledTaskPrincipal ' +
-    '-UserId ([System.Security.Principal.WindowsIdentity]::GetCurrent().Name) ' +
-    '-LogonType Interactive ' +
-    '-RunLevel Limited; ' +
-
-    '$settings = New-ScheduledTaskSettingsSet ' +
-    '-StartWhenAvailable ' +
-    '-AllowStartIfOnBatteries ' +
-    '-DontStopIfGoingOnBatteries ' +
-    '-ExecutionTimeLimit ([TimeSpan]::FromHours(1)) ' +
-    '-MultipleInstances IgnoreNew ' +
-    '-Priority 7; ' +
-
-    'Register-ScheduledTask ' +
-    '-TaskName ''Faisons les comptes'' ' +
-    '-Action $action ' +
-    '-Trigger $trigger ' +
-    '-Principal $principal ' +
-    '-Settings $settings ' +
-    '-Description ''Le but est de penser à enregistrer les comptes régulièrement'' ' +
-    '-Force ' +
-    '-ErrorAction Stop';
-
-  NombreRemplacements := StringChangeEx(Command, '"', '""', True);
-
-  Result :=
-    '-NoProfile -ExecutionPolicy Bypass -Command "' +
-    Command +
-    '"';
-end;
-
-
-function GetXmlParameters(Param: String): String;
-var
-  ScriptPath: String;
-  XmlPath: String;
-  Command: String;
-  NombreRemplacements: Integer;
-begin
-  ScriptPath := ExpandConstant('{app}\programme\TraitementReleve.ps1');
-  XmlPath := ExpandConstant('{app}\programme\Tache_Faisons_les_comptes.xml');
 
   Command :=
     '$ErrorActionPreference = ''Stop''; ' +
@@ -182,6 +128,7 @@ begin
     '''<StartWhenAvailable>true</StartWhenAvailable>'' + ' +
     '''<AllowHardTerminate>true</AllowHardTerminate>'' + ' +
     '''<ExecutionTimeLimit>PT1H</ExecutionTimeLimit>'' + ' +
+    '''<RunOnlyIfNetworkAvailable>true</RunOnlyIfNetworkAvailable>'' + ' +
     '''<Priority>7</Priority>'' + ' +
     '''<Enabled>true</Enabled>'' + ' +
     '''<Hidden>false</Hidden>'' + ' +
@@ -197,11 +144,20 @@ begin
     '''</Exec>'' + ' +
     '''</Actions>'' + ' +
 
-    '''</Task>''; ' +
+    '''</Task>''; ';
 
-    '[System.IO.File]::WriteAllText(''' +
-      XmlPath +
-    ''', $xml, [System.Text.Encoding]::Unicode)';
+  if CreateTask then
+    Command := Command +
+      'Register-ScheduledTask ' +
+      '-TaskName ''Faisons les comptes'' ' +
+      '-Xml $xml ' +
+      '-Force ' +
+      '-ErrorAction Stop | Out-Null'
+  else
+    Command := Command +
+      '[System.IO.File]::WriteAllText(''' +
+        ExpandConstant('{app}\programme\Faisons les comptes.xml') +
+      ''', $xml, [System.Text.Encoding]::Unicode)';
 
   NombreRemplacements := StringChangeEx(Command, '"', '""', True);
 
@@ -217,14 +173,16 @@ var
   ResultCode: Integer;
   Success: Boolean;
   PowerShellPath: String;
+  XmlPath: String;
 begin
   PowerShellPath :=
     ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe');
+  XmlPath := ExpandConstant('{app}\programme\Faisons les comptes.xml');
 
   Success := ShellExec(
     'runas',
     PowerShellPath,
-    GetTaskParameters(''),
+    GetTaskParameters(True),
     '',
     SW_HIDE,
     ewWaitUntilTerminated,
@@ -235,19 +193,19 @@ begin
   begin
     if Exec(
       PowerShellPath,
-      GetXmlParameters(''),
+      GetTaskParameters(False),
       '',
       SW_HIDE,
       ewWaitUntilTerminated,
       ResultCode
-    ) then
+    ) and (ResultCode = 0) and FileExists(XmlPath) then
     begin
       MsgBox(
         'La création automatique de la tâche planifiée n''a pas pu être effectuée.' +
         Chr(13) + Chr(10) + Chr(13) + Chr(10) +
         'Un fichier XML permettant de créer la tâche manuellement a été créé dans :' +
         Chr(13) + Chr(10) +
-        ExpandConstant('{app}\programme\Tache_Faisons_les_comptes.xml'),
+        XmlPath,
         mbInformation,
         MB_OK
       );
