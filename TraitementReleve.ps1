@@ -108,8 +108,7 @@ else {
     Write-Host "Mode test sans pop-up activé. Le navigateur ne sera pas ouvert." -ForegroundColor Yellow
 }
 Write-Host ""
-Write-Host "Le script attend un fichier correspondant à :"
-Write-Host "1234567K1234567812345678.csv" -ForegroundColor Cyan
+Write-Host "Le script attend un fichier correspondant au regex '"+$motifFichier+"', comme par exemple 1234567A1234567812345678.csv" -ForegroundColor Cyan
 Write-Host ""
 
 if (-not [string]::IsNullOrWhiteSpace($EvenementSurveillanceReleveDemarree)) {
