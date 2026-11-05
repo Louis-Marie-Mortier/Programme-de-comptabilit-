@@ -14,3 +14,5 @@ Le plus simple et ce que je coneille est de télécharger la dernière release, 
 
 ## Utilisation
 Personnalisez comme vous voulez votre modèle et votre fichier des transactions, mais veillez à ne jamais modifier les cinq premières cellules de la ligne modèle.
+
+Le raccourci « Lancer le rappel des comptes » du Bureau ou du menu Démarrer lance la tâche planifiée et reporte son prochain rappel selon la fréquence choisie lors de l’installation.

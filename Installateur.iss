@@ -19,6 +19,8 @@ WizardStyle=modern
 
 [Files]
 Source: "TraitementReleve.ps1"; DestDir: "{app}\programme"; Flags: ignoreversion
+Source: "LancerFaisonsLesComptes.ps1"; DestDir: "{app}\programme"; Flags: ignoreversion
+Source: "LancerFaisonsLesComptes.cmd"; DestDir: "{app}\programme"; Flags: ignoreversion
 Source: "AjouterTransactionsOds.py"; DestDir: "{app}\programme"; Flags: ignoreversion
 Source: "Modele.ods"; DestDir: "{app}\programme"; Flags: ignoreversion
 Source: "Notice.pdf"; DestDir: "{app}\programme"; Flags: ignoreversion
@@ -26,6 +28,12 @@ Source: "Notice.pdf"; DestDir: "{app}\programme"; Flags: ignoreversion
 [Icons]
 Name: "{autoprograms}\Gestion des relevés bancaires\Notice"; \
     Filename: "{app}\programme\Notice.pdf"
+Name: "{autoprograms}\Gestion des relevés bancaires\Lancer le rappel"; \
+    Filename: "{app}\programme\LancerFaisonsLesComptes.cmd"; \
+    WorkingDir: "{app}\programme"
+Name: "{autodesktop}\Lancer le rappel des comptes"; \
+    Filename: "{app}\programme\LancerFaisonsLesComptes.cmd"; \
+    WorkingDir: "{app}\programme"
     
 [Code]
 var
@@ -77,14 +85,17 @@ end;
 function GetTaskParameters(CreateTask: Boolean): String;
 var
   ScriptPath: String;
+  UserName: String;
   Command: String;
   NombreRemplacements: Integer;
 begin
   ScriptPath := ExpandConstant('{app}\programme\TraitementReleve.ps1');
+  UserName := GetUserNameString();
+  StringChangeEx(UserName, '''', '''''', True);
 
   Command :=
     '$ErrorActionPreference = ''Stop''; ' +
-    '$user = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name; ' +
+    '$user = ''' + UserName + '''; ' +
     '$escapedUser = [System.Security.SecurityElement]::Escape($user); ' +
     '$escapedPath = [System.Security.SecurityElement]::Escape(''' +
       ScriptPath +
@@ -152,7 +163,35 @@ begin
       '-TaskName ''Faisons les comptes'' ' +
       '-Xml $xml ' +
       '-Force ' +
-      '-ErrorAction Stop | Out-Null'
+      '-ErrorAction Stop | Out-Null; ' +
+      '$service = New-Object -ComObject ''Schedule.Service''; ' +
+      '$service.Connect(); ' +
+      '$registeredTask = $service.GetFolder(''\'').GetTask(''Faisons les comptes''); ' +
+      '$taskSecurity = [System.Security.AccessControl.RawSecurityDescriptor]::new($registeredTask.GetSecurityDescriptor(4)); ' +
+      '$userSid = [System.Security.Principal.NTAccount]::new($user).Translate([System.Security.Principal.SecurityIdentifier]); ' +
+      '$taskDacl = $taskSecurity.DiscretionaryAcl; ' +
+      'if ($null -eq $taskDacl) { throw ''La tâche ne possède pas de liste de permissions modifiable.'' }; ' +
+      '$taskRights = [int]0x60000000; ' +
+      '$mappedTaskRights = [int]0x001201B6; ' +
+      '$aceExists = $false; ' +
+      'foreach ($ace in $taskDacl) { ' +
+        'if (($ace -is [System.Security.AccessControl.CommonAce]) -and ' +
+            '($ace.AceQualifier -eq [System.Security.AccessControl.AceQualifier]::AccessAllowed) -and ' +
+            '$ace.SecurityIdentifier.Equals($userSid) -and ' +
+            '((($ace.AccessMask -band $taskRights) -eq $taskRights) -or ' +
+             '(($ace.AccessMask -band $mappedTaskRights) -eq $mappedTaskRights))) { ' +
+          '$aceExists = $true; break ' +
+        '} ' +
+      '}; ' +
+      'if (-not $aceExists) { ' +
+        '$ace = [System.Security.AccessControl.CommonAce]::new(' +
+          '[System.Security.AccessControl.AceFlags]::None, ' +
+          '[System.Security.AccessControl.AceQualifier]::AccessAllowed, ' +
+          '$taskRights, $userSid, $false, $null); ' +
+        '$taskDacl.InsertAce($taskDacl.Count, $ace) ' +
+      '}; ' +
+      '$securityDescriptor = $taskSecurity.GetSddlForm([System.Security.AccessControl.AccessControlSections]::Access); ' +
+      '$registeredTask.SetSecurityDescriptor($securityDescriptor, 0x10)'
   else
     Command := Command +
       '[System.IO.File]::WriteAllText(''' +
@@ -235,7 +274,8 @@ var
 begin
   Parametres :=
     '-NoProfile -ExecutionPolicy Bypass -Command ' +
-    '"Unregister-ScheduledTask -TaskName ''Faisons les comptes'' -Confirm:$false -ErrorAction Stop"';
+    '"$task = Get-ScheduledTask -TaskName ''Faisons les comptes'' -ErrorAction SilentlyContinue; ' +
+    'if ($null -ne $task) { Unregister-ScheduledTask -TaskName ''Faisons les comptes'' -Confirm:$false -ErrorAction Stop }"';
 
   if ShellExec(
     'runas',
